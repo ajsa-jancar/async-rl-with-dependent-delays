@@ -1,5 +1,5 @@
 # Fdb version 4
-["pdflatex"] 1795454321.55265 "/Users/ajsajancar/Documents/async-rl-with-dependent-delays/main.tex" "main.pdf" "main" 1795454322.23745 0
+["pdflatex"] 1795455194.5216 "/Users/ajsajancar/Documents/async-rl-with-dependent-delays/main.tex" "main.pdf" "main" 1795455195.20742 0
   "/Users/ajsajancar/Documents/async-rl-with-dependent-delays/main.tex" 1795446264.80195 26812 529d7665af04ba88c9cf317f46571c3a ""
   "/usr/local/texlive/2024/texmf-dist/fonts/enc/dvips/cm-super/cm-super-ts1.enc" 1136849721 2900 1537cc8184ad1792082cd229ecc269f4 ""
   "/usr/local/texlive/2024/texmf-dist/fonts/map/fontname/texfonts.map" 1577235249 3524 cb3e574dea2d1052e39280babc910dc8 ""
@@ -151,8 +151,8 @@
   "/usr/local/texlive/2024/texmf-var/fonts/map/pdftex/updmap/pdftex.map" 1738069904.75523 5467645 128b85b7cde5f5edc5cb7f1dd7ff8736 ""
   "/usr/local/texlive/2024/texmf-var/web2c/pdftex/pdflatex.fmt" 1738069878 8221424 bab959cddb9931d120d0fc198470faa4 ""
   "/usr/local/texlive/2024/texmf.cnf" 1710266656 577 e590dabc9e28c5b61546e15f63eebcdf ""
-  "1-groups.tex" 1795454321.40905 4689 352db4c82e3c99084196a6a44862df84 ""
-  "main.aux" 1795454322.15223 513 f14bcea6b3374b5ef2e0d5692bfd7711 "pdflatex"
+  "1-groups.tex" 1795455194.37255 4685 da1d7a102dd663d670f6377246f3e8c0 ""
+  "main.aux" 1795455195.1213 513 f14bcea6b3374b5ef2e0d5692bfd7711 "pdflatex"
   "main.tex" 1795446264.80195 26812 529d7665af04ba88c9cf317f46571c3a ""
   (generated)
   "main.aux"
