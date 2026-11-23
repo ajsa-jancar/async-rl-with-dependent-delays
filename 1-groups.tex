@@ -1,0 +1,25 @@
+\newpage 
+
+\section*{What changes when $G=1$?}
+
+\begin{itemize}
+    \item Each group contains just one response $Y^{(b)} \implies$  leave-one-out advantage is no longer defined, so we replace it with
+    \begin{equation*}
+         A(x, y)=r_\phi(x, y)-V(x),   
+    \end{equation*}
+    \item Importance ratio becomes 
+    \begin{equation}
+    \rho_n^{(b)}=\frac{\pi_{\theta_n}\left(Y^{(b)} \mid x^{(b)}\right)}{\pi_\theta\left(Y^{(b)} \mid x^{(b)}\right)} 
+    \end{equation}
+    and $\bar{\rho}_n^{(b)}=\rho_n^{(b)} .$
+    \item The GMC ratio simplifies to
+    \begin{equation*}
+        \hat{\rho}_n^{(b)}=\min \left\{\rho_n^{(b)}, 1+\epsilon\right\} .
+    \end{equation*}
+    \item Group-level gradient estimator
+    \begin{equation*}
+        U_{n, b}=\frac{1}{T} \min \left\{\rho_n^{(b)}, 1+\epsilon\right\} \nabla \log \pi_{\theta_n}\left(Y^{(b)} \mid x^{(b)}\right) A\left(x^{(b)}, Y^{(b)}\right).
+    \end{equation*}
+\end{itemize}
+
+\subsection*{Biases}
