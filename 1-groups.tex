@@ -9,17 +9,96 @@
     \end{equation*}
     \item Importance ratio becomes 
     \begin{equation}
-    \rho_n^{(b)}=\frac{\pi_{\theta_n}\left(Y^{(b)} \mid x^{(b)}\right)}{\pi_\theta\left(Y^{(b)} \mid x^{(b)}\right)} 
+    \rho_n^{(b)}=\frac{\pi_{\theta_n}\left(Y^{(b)} \mid x^{(b)}\right)}{\pi_{\theta_{n-\tau_n^{(b)}}}\left(Y^{(b)} \mid x^{(b)}\right)} 
     \end{equation}
     and $\bar{\rho}_n^{(b)}=\rho_n^{(b)} .$
     \item The GMC ratio simplifies to
     \begin{equation*}
-        \hat{\rho}_n^{(b)}=\min \left\{\rho_n^{(b)}, 1+\epsilon\right\} .
+        \hat{\rho}_n^{(b)}=\min \left\{\rho_n^{(b)}, 1+\epsilon\right\},
     \end{equation*}
+    so we are now doing clipping (to be precise, clipped importance-sampling policy gradient, not group-relative policy gradient)
     \item Group-level gradient estimator
     \begin{equation*}
         U_{n, b}=\frac{1}{T} \min \left\{\rho_n^{(b)}, 1+\epsilon\right\} \nabla \log \pi_{\theta_n}\left(Y^{(b)} \mid x^{(b)}\right) A\left(x^{(b)}, Y^{(b)}\right).
     \end{equation*}
+    \item Reference distribution is simply $P_{n, b}=\pi_\theta{ }_{n-\tau_n^{(b)}}\left(\cdot \mid x^{(b)}\right)$
+    \item Actual conditional distribution $Q_{n, b}=\mathcal{L}\left(Y^{(b)} \mid \mathcal{H}_n\right)$. There is no factorisation question, but $Q_{n, b}$ can differ from $P_{n, b}$ because longer trajectories tend to take longer to complete.
 \end{itemize}
 
 \subsection*{Biases}
+\begin{itemize}
+    \item Prompt-selection bias $p_n$: potentially remains. Prompts generating shorter responses can return more frequently and thus be overrepresented.
+    \item Response-selection bias $s_{n,b}$: potentially remains. Conditioning on a returned response and its delay favours a particular trajectory length (e.g. short delay, short response)
+    \item GMC correction bias $c_{n,b}$: remains since $\rho$ can still exceed the chosen threshold. This should now be called a clipping bias.
+    \item Total bias decomposition stays 
+    \begin{equation*}
+       b_n=p_n+\mathbb{E}\left[\left.\frac{1}{B} \sum_{b=1}^B\left(s_{n, b}+c_{n, b}\right) \right\rvert\, \mathcal{F}_n^{-}\right] .
+    \end{equation*}
+
+
+\end{itemize}
+
+\subsection*{Lemma 6 revisited}
+With slight abuse of notation, drop the indices and write $$P=\pi_{\theta_{n-\tau}}(\cdot \mid x), \quad Q=\mathcal{L}\left(Y \mid \mathcal{H}_n\right).$$ Define $$R(y):=\frac{d Q}{d P}(y), \quad \rho(y):=\frac{\pi_{\theta_n}(y \mid x)}{P(y)}$$ and $$f(y)=\frac{1}{T} \nabla \log \pi_{\theta_n}(y \mid x) A(x, y),$$
+with this notation
+$$U_{n, b}(y)=\min \{\rho(y), 1+\epsilon\} f(y), \quad U_{n, b}^{\mathrm{IS}}(y)=\rho(y) f(y) .$$
+
+Then 
+\begin{align} \label{lemma6revisit}
+s_{n, b}+c_{n, b} &= \mathbb{E}_Q\left[U_{n, b}\right]-\mathbb{E}_P\left[U_{n, b}^{\mathrm{IS}}\right] \nonumber \\
+&=\mathbb{E}_Q[\min (\rho, 1+\epsilon) f]-\mathbb{E}_P[\rho f] \nonumber \\
+& =\mathbb{E}_P[R \min (\rho, 1+\epsilon) f]-\mathbb{E}_P[\rho f] \nonumber \\
+&=\mathbb{E}_P[(R(y) \min \{\rho(y), 1+\epsilon\}-\rho(y)) f(y)].
+\end{align}
+
+\subsubsection*{Lemma 6 analogue without splitting terms or using Cauchy Schwarz}
+From Lemma 2 and $\|A\|\leq 2R$,
+
+$$\|f\| \leq 2 R \sqrt{2 L \log C}=:M$$
+
+Then taking norms in \eqref{lemma6revisit}, applying triangle inequality and squaring gives
+
+\begin{equation*}
+    \|s_{n, b}+c_{n, b}\|^2 \leq M^2 \left(\mathbb{E}_P\left[|R(y) \min \{\rho(y), 1+\epsilon\}-\rho(y)|\right]\right)^2.
+\end{equation*}
+
+Similarly, in general $G$ case we would get 
+\begin{equation*}
+    \left\|s_{n, b}+c_{n, b}\right\|^2 \leq M^2\left(\mathbb{E}_P\left[\frac{1}{G} \sum_{i=1}^G\left|R(y) \hat{\rho}^{(b, i)}-\rho^{(b, i)}\right|\right]\right)^2 .
+\end{equation*}
+where $R(Y)=\frac{d Q_{n, b}}{d P_{n, b}}\left(Y^1, \ldots, Y^G\right)$.
+
+\subsubsection*{An idea: simple length-dependent selection model}
+
+Suppose the probability of a response being selected is $w(y)$and suppose this only depends on response length:
+$$
+w(y)=w(|y|) .
+$$
+We have 
+$$
+P(y)=\mathbb{P}(Y=y), \quad Q(y)=\mathbb{P}(Y=y \mid A)
+$$
+and
+$$
+w(|y|)=\mathbb{P}(A \mid Y=y) .
+$$
+
+By Bayes' rule,
+\begin{align*}
+Q(y) & =\mathbb{P}(Y=y \mid A) \\
+& =\frac{\mathbb{P}(A \mid Y=y) \mathbb{P}(Y=y)}{\mathbb{P}(A)} \\
+& =\frac{w(|y|) P(y)}{\mathbb{P}(A)} .
+\end{align*}
+
+Now by LOTP,
+\begin{align*}
+\mathbb{P}(A) & =\sum_y \mathbb{P}(A \mid Y=y) P(y) \\
+& =\sum_y w(|y|) P(y) \\
+& =\mathbb{E}_P[w(|Y|)] 
+\end{align*}
+so that 
+$$Q(y)=\frac{w(|y|) P(y)}{\mathbb{E}_P[w(|Y|)]}, \quad R(y)=\frac{w(|y|)}{\mathbb{E}_P[w(|Y|)]}$$
+and 
+\begin{equation*}
+s_{n, b}+c_{n, b}=\mathbb{E}_P[(\frac{w(|y|)}{\mathbb{E}_P[w(|Y|)]} \min \{\rho(y), 1+\epsilon\}-\rho(y)) f(y)].
+\end{equation*}
