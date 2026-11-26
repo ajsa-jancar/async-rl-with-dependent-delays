@@ -19,7 +19,7 @@ group is consumed
 \hline Parameter vector $x_k$ & Policy parameters $\theta_n$ at learner iteration $n$ \\
 \hline Worker $m_k$ & Rollout worker $m_k$ \\
 \hline Random sample $\xi_k^{m_k}$ & Prompt and responses $\left(X_k, Y_k^1, \ldots, Y_k^G\right)$ \\
-\hline Gradient computed at $x_k$ & Group generated under $\pi_{\theta_k}$ \\
+\hline Gradient computed at $x_k$ & Group generated under $\pi_{\theta_{d(k)}}$ \\
 \hline Stochastic gradient $\nabla f\left(x_k ; \xi_k^{m_k}\right)$ & Generation-time estimator $V_k$ \\
 \hline
 \end{tabular}
@@ -94,13 +94,16 @@ length, so
 \neq \frac1T\nabla J(\theta_n).
 \end{equation*}
 
-Under sampling at dispatch, the new group is
-sampled from $\pi_{\theta_k}$ independently of its future completion
-time. Therefore,
-\begin{equation*}
+
+At dispatch, the group is sampled from
+$\pi_{\theta_{d(k)}}$, before its completion time
+is observed. The completion time may depend on
+the generated responses. Nevertheless,
+\[
 \mathbb E[V_k\mid\mathcal G_k]
-=\frac1T\nabla J(\theta_k).
-\end{equation*}
+=\frac1T\nabla J(\theta_{d(k)}),
+\]
+since we do not condition on the completion time.
 
 \subsubsection{Return-time GMC estimator}
 
@@ -221,6 +224,22 @@ Thus
 e_k=F_k(\theta_{r(k)})-F_k(\theta_{d(k)}).
 \end{equation*}
 
+\paragraph{Assumptions}
+\begin{itemize}
+    \item For each group $k$, along the line segment
+\begin{equation*}
+\theta(t)=\theta_{d(k)}
++t(\theta_{r(k)}-\theta_{d(k)}),
+\qquad t\in[0,1],
+\end{equation*}
+the GMC cap switches between active and inactive only
+finitely many times.
+\item 
+We additionally assume that Assumptions 1 and 2
+hold along every line segment joining
+$\theta_{d(k)}$ and $\theta_{r(k)}$.
+\end{itemize}
+
 \begin{lemma}[Error bound] \label{lem:gmc_error}
     $$\|e_k\| \le H_\epsilon\eta K\tau_k$$
     where
@@ -233,19 +252,6 @@ e_k=F_k(\theta_{r(k)})-F_k(\theta_{d(k)}).
     K=2R(1+\epsilon)\sqrt{2L\log C},$ and
     $\tau_k=r(k)-d(k).$
 \end{lemma}
-
-
-\paragraph{Assumption for the proof: finite cap switching.}
-For each group $k$, along the line segment
-\begin{equation*}
-\theta(t)=\theta_{d(k)}
-+t(\theta_{r(k)}-\theta_{d(k)}),
-\qquad t\in[0,1],
-\end{equation*}
-the GMC cap switches between active and inactive only
-finitely many times.
-
-
 
 \begin{proof}
 
@@ -463,8 +469,67 @@ $\|e_k\|_2\le H_\epsilon\eta K\tau_k$,
 
 \subsection{Convergence analysis}
 
-\paragraph{Step 1: applying the smoothness of $J$.}
 
+\begin{theorem}[Convergence of asynchronous GMC-GRPO]
+\label{thm:async_gmc}
+Suppose $B=1$, $G\ge 2$, and there are $M$ rollout workers,
+each generating one group at a time. Assumptions:
+\begin{enumerate}
+    \item Every dispatched group is eventually consumed and exactly once.
+    After each learner update, the corresponding worker immediately
+    starts generating a new group under the updated policy.
+
+    \item At dispatch, $X_k\mid\mathcal G_k\sim\mathcal D$ and
+    \[
+    Y_k^1,\ldots,Y_k^G\mid X_k,\mathcal G_k
+    \overset{\mathrm{i.i.d.}}{\sim}
+    \pi_{\theta_{d(k)}}(\cdot\mid X_k).
+    \]
+    Completion times may depend on the generated responses.
+
+    \item Rewards are bounded by $R$, trajectory lengths by $T$,
+    and Assumptions 1 and 2 hold, including along the segments
+    joining $\theta_{d(k)}$ and $\theta_{r(k)}$.
+    The objective $J$ is $L_J$-smooth and bounded above by $J^\star$.
+
+    \item The GMC cap satisfies the finite cap-switching
+    assumption above.
+\end{enumerate}
+
+Let $\theta_0$ be deterministic and let $\eta>0$ be constant.
+Define
+\[
+K_0=2R\sqrt{2L\log C},\qquad
+K=(1+\epsilon)K_0,
+\]
+\[
+H_\epsilon=2R(1+\epsilon)(4TL\log C+L),
+\qquad
+H_J=RT\sqrt{2L\log C}.
+\]
+Then, for every $N\ge 1$,
+\begin{align*}
+\frac1N\sum_{n=1}^N
+\mathbb E\|\nabla J(\theta_n)\|_2^2
+&\le
+\frac{T(J^\star-J(\theta_0))}{\eta N}
++\frac{TMH_JK_0}{N}\\
+&\quad+
+T\eta KM(L_JK_0+H_JH_\epsilon)
++\frac{TL_J\eta K^2}{2}.
+\end{align*}
+
+In particular, taking $\eta=N^{-1/2}$ and fixing $M$,
+\[
+\frac1N\sum_{n=1}^N
+\mathbb E\|\nabla J(\theta_n)\|_2^2
+=O(N^{-1/2}).
+\]
+\end{theorem}
+
+
+\begin{proof}
+\textbf{Step 1: applying the smoothness of $J$.}
 By $L_J$-smoothness of $J$,
 \begin{align*}
 J(\theta_{n+1})
@@ -491,8 +556,7 @@ J(\theta_N)-J(\theta_0)
 \label{eq:async_descent}
 \end{equation}
 
-\paragraph{Step 2: decomposing the inner product.}
-
+\textbf{Step 2: decomposing the inner product.}
 Recall that $U_k=V_k+e_k$. Adding and subtracting
 $\nabla J(\theta_{d(k)})$, we obtain
 \begin{align*}
@@ -503,15 +567,12 @@ $\nabla J(\theta_{d(k)})$, we obtain
 \end{align*}
 
 
-
-\paragraph{Step 3: bounding the staleness and GMC errors.}
-
+\textbf{Step 3: bounding the staleness and GMC errors.}
 First, recall that $\|V_k\|_2\le K_0$, as shown
 in the virtual-iterate lemma, where
 \[
 K_0=2R\sqrt{2L\log C}.
 \]
-
 By Cauchy--Schwarz, $L_J$-smoothness of $J$
 (Lemma 4 in our previous analysis), and
 \eqref{eq:parameter_drift},
@@ -565,8 +626,6 @@ Lemma~\ref{lem:cumulative_delay},
 &\le H_JH_\epsilon\eta KMN.
 \end{align*}
 
-
-
 Summing the decomposition from Step 2 over
 $k\in\mathcal C_N$, and using the two bounds above
 together with Lemma~\ref{lem:cumulative_delay},
@@ -583,11 +642,7 @@ we obtain
 \label{eq:async_error_bound}
 \end{align}
 
-
-
-
-\paragraph{Step 4. Relating consumed and dispatched groups.}
-
+\textbf{Step 4. Relating consumed and dispatched groups.}
 Since every dispatched group is either consumed or
 still outstanding,
 \[
@@ -680,9 +735,7 @@ Combining the previous inequalities, we obtain
 \end{align}
 
 
-
-\paragraph{Step 5. Convergence rate.}
-
+\textbf{Step 5. putting it together.}
 Combining \eqref{eq:async_descent} and
 \eqref{eq:async_error_bound}, and taking expectations,
 we obtain
@@ -742,5 +795,4 @@ Taking $\eta=N^{-1/2}$, for fixed $M$,
 \mathbb E\|\nabla J(\theta_n)\|_2^2
 =O(N^{-1/2}).
 \]
-
-
+\end{proof}
