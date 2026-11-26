@@ -1,6 +1,6 @@
 # Fdb version 4
-["pdflatex"] 1795734686.66666 "/Users/ajsajancar/Documents/async-rl-with-dependent-delays/main.tex" "main.pdf" "main" 1795734687.37664 0
-  "/Users/ajsajancar/Documents/async-rl-with-dependent-delays/main.tex" 1795733202.01507 26882 c963f2751d89dbd7dfd3572fb8a9bfa3 ""
+["pdflatex"] 1795735037.94616 "/Users/ajsajancar/Documents/async-rl-with-dependent-delays/main.tex" "main.pdf" "main" 1795735038.59949 0
+  "/Users/ajsajancar/Documents/async-rl-with-dependent-delays/main.tex" 1795735037.04563 26886 1f02732699924832b40530aaee04c788 ""
   "/usr/local/texlive/2024/texmf-dist/fonts/enc/dvips/cm-super/cm-super-ts1.enc" 1136849721 2900 1537cc8184ad1792082cd229ecc269f4 ""
   "/usr/local/texlive/2024/texmf-dist/fonts/map/fontname/texfonts.map" 1577235249 3524 cb3e574dea2d1052e39280babc910dc8 ""
   "/usr/local/texlive/2024/texmf-dist/fonts/tfm/jknappen/ec/tcrm1000.tfm" 1136768653 1536 e07581a4bb3136ece9eeb4c3ffab8233 ""
@@ -159,9 +159,8 @@
   "/usr/local/texlive/2024/texmf-var/web2c/pdftex/pdflatex.fmt" 1738069878 8221424 bab959cddb9931d120d0fc198470faa4 ""
   "/usr/local/texlive/2024/texmf.cnf" 1710266656 577 e590dabc9e28c5b61546e15f63eebcdf ""
   "1-groups.tex" 1795726112.34272 3789 b439c67e7ff26321b9e79cf896c1193e ""
-  "length-dep-selection.tex" 1795726112.34179 896 d7bfec2a14b82fdd396445f8d652a7cd ""
-  "main.aux" 1795734687.29146 2448 da5d15e0d7efa2937bc95b27d42c1d08 "pdflatex"
-  "main.tex" 1795733202.01507 26882 c963f2751d89dbd7dfd3572fb8a9bfa3 ""
+  "main.aux" 1795735038.5164 2448 81b7b2a56c1fa20053467e4bd279b6aa "pdflatex"
+  "main.tex" 1795735037.04563 26886 1f02732699924832b40530aaee04c788 ""
   "virtual-seq.tex" 1795734686.52826 21198 8f3521762472448bc274b4e3c9d14b4d ""
   (generated)
   "main.aux"
