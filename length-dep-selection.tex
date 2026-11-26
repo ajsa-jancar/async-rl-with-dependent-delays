@@ -1,0 +1,34 @@
+\section*{An idea: simple length-dependent selection model}
+
+Suppose the probability of a response being selected is $w(y)$and suppose this only depends on response length:
+$$
+w(y)=w(|y|) .
+$$
+We have 
+$$
+P(y)=\mathbb{P}(Y=y), \quad Q(y)=\mathbb{P}(Y=y \mid A)
+$$
+and
+$$
+w(|y|)=\mathbb{P}(A \mid Y=y) .
+$$
+
+By Bayes' rule,
+\begin{align*}
+Q(y) & =\mathbb{P}(Y=y \mid A) \\
+& =\frac{\mathbb{P}(A \mid Y=y) \mathbb{P}(Y=y)}{\mathbb{P}(A)} \\
+& =\frac{w(|y|) P(y)}{\mathbb{P}(A)} .
+\end{align*}
+
+Now by LOTP,
+\begin{align*}
+\mathbb{P}(A) & =\sum_y \mathbb{P}(A \mid Y=y) P(y) \\
+& =\sum_y w(|y|) P(y) \\
+& =\mathbb{E}_P[w(|Y|)] 
+\end{align*}
+so that 
+$$Q(y)=\frac{w(|y|) P(y)}{\mathbb{E}_P[w(|Y|)]}, \quad R(y)=\frac{w(|y|)}{\mathbb{E}_P[w(|Y|)]}$$
+and 
+\begin{equation*}
+s_{n, b}+c_{n, b}=\mathbb{E}_P[(\frac{w(|y|)}{\mathbb{E}_P[w(|Y|)]} \min \{\rho(y), 1+\epsilon\}-\rho(y)) f(y)].
+\end{equation*}

@@ -1,0 +1,746 @@
+\section{Virtual-sequence approach -  Mishchenko
+et al. (2022)}
+
+\subsection{Setup}
+
+\begin{itemize}
+    \item Assume $B=1$ while keeping $G\geq 2$ $\implies$ at every learner iteration, exactly one completed
+group is consumed
+    \item $M$ rollout workers, each generating one group at a time. when a group finishes, the learner immediately applies its GMC update and the worker starts generating a new group of responses using the updated policy.
+    \item Every dispatched group eventually returns and is consumed once
+    \item Completion times depend on generated responses
+\end{itemize}
+
+
+\subsubsection{Correspondence with Mishchenko et. al.}
+
+\begin{tabular}[t]{|l|l|}
+\hline Mishchenko et al. & Our setting \\
+\hline Parameter vector $x_k$ & Policy parameters $\theta_n$ at learner iteration $n$ \\
+\hline Worker $m_k$ & Rollout worker $m_k$ \\
+\hline Random sample $\xi_k^{m_k}$ & Prompt and responses $\left(X_k, Y_k^1, \ldots, Y_k^G\right)$ \\
+\hline Gradient computed at $x_k$ & Group generated under $\pi_{\theta_k}$ \\
+\hline Stochastic gradient $\nabla f\left(x_k ; \xi_k^{m_k}\right)$ & Generation-time estimator $V_k$ \\
+\hline
+\end{tabular}
+
+Structural differences:
+\begin{itemize}
+    \item  Mishchenko's worker computes a gradient, whereas our worker generates responses, and actual GMC gradient is evaluated later.
+    \item In their Algorithm 1, a worker starts computing
+    $
+    \nabla f\left(x_k ; \xi_k^{m_k}\right)
+    $
+    using the parameters $x_k$. If this gradient finishes at iteration $r(k)$, the learner appli that same gradient:
+
+    $$
+    x_{r(k)+1}=x_{r(k)}-\eta \nabla f\left(x_k ; \xi_k^{m_k}\right) .
+    $$
+
+    The gradient is stale, but its value is not recomputed at the current parameters. In GMC-GRPO, the responses are generated at dispatch, but the actual gradient estimator is evaluated when the group returns.
+    \item Unlike in Mishchenko et al., the applied update is not identical to the generation-time estimator (see below).
+    \end{itemize}
+
+
+\subsubsection{Dispatch-time sampling}
+
+Suppose group $k$ is dispatched at iteration $d(k)$ and consumed at iteration $r(k)$.
+
+Let $\mathcal G_k$ denote the information available immediately
+before this group is sampled. At dispatch, we assume
+\begin{equation*}
+X_k\sim\mathcal D,
+\qquad
+Y_k^1,\ldots,Y_k^G
+\mid X_k,\mathcal G_k
+\overset{\mathrm{i.i.d.}}{\sim}
+\pi_{\theta_{d(k)}}(\cdot\mid X_k).
+\end{equation*}
+
+We allow the completion time to depend on the generated
+responses. In particular, no independence between
+response lengths and delays is assumed.
+
+Define the generation-time estimator
+\begin{equation*}
+V_k=
+\frac{1}{TG}\sum_{i=1}^G
+\nabla\log\pi_{\theta_{d(k)}}(Y_k^i\mid X_k)
+\widehat A_k^i.
+\end{equation*}
+
+Then
+\begin{equation*}
+\mathbb E[V_k\mid\mathcal G_k]
+=\frac1T\nabla J(\theta_{d(k)}).
+\end{equation*}
+
+This is the analogue of the unbiased stochastic gradient
+$\nabla f(x_k;\xi_k^{m_k})$ used in Mishchenko et al.
+The expectation is taken at dispatch, before conditioning
+on the group's completion time, so no independence assumption needed.
+
+\paragraph{Difference between $\mathcal F_n^-$ and $\mathcal G_k$ - why conditional unbiasedness now holds}
+\begin{itemize}
+    \item $\mathcal F_n^-$ contains the information available before the next
+completed group is consumed,
+    \item $\mathcal G_k$ contains the
+information available before a new group is generated
+\end{itemize}
+The group arriving at iteration $n$ has already been generated, and (the order of) its arrival may depend on response
+length, so
+\begin{equation*}
+\mathbb E[g_n\mid\mathcal F_n^-]
+\neq \frac1T\nabla J(\theta_n).
+\end{equation*}
+
+Under sampling at dispatch, the new group is
+sampled from $\pi_{\theta_k}$ independently of its future completion
+time. Therefore,
+\begin{equation*}
+\mathbb E[V_k\mid\mathcal G_k]
+=\frac1T\nabla J(\theta_k).
+\end{equation*}
+
+\subsubsection{Return-time GMC estimator}
+
+Suppose group $k$ is dispatched at iteration $d(k)$ and consumed at iteration $r(k)$.
+
+$$
+\begin{gathered}
+\rho_k^i=\frac{\pi_{\theta_{r(k)}}\left(Y_k^i \mid X_k\right)}{\pi_{\theta_{d(k)}}\left(Y_k^i \mid X_k\right)}, \quad \overline{\rho_k}=\frac{1}{G} \sum_{i=1}^G \rho_k^i, \\
+\hat{\rho}_k^i=\frac{\rho_k^i}{\max \left\{1, \bar{\rho}_k /(1+\epsilon)\right\}} .
+\end{gathered}
+$$
+
+The learner applies
+
+$$
+U_k=\frac{1}{T G} \sum_{i=1}^G \hat{\rho}_k^i \nabla \log \pi_{\theta_{r(k)}}\left(Y_k^i \mid X_k\right) \widehat{A}_k^i .
+$$
+
+(same as before, but indexed the group by dispatch instead of consumption iteration)
+
+Define
+
+$$
+e_k:=U_k-V_k .
+$$
+
+This is the effect of evaluating the group update at the return-time policy rather than at its generation-time policy.
+Then
+
+$$
+U_k=V_k+e_k .
+$$
+
+\subsubsection{Consumed, dispatched and oustanding groups}
+Consider the moment immediately after the learner has completed $n$ updates and dispatched the next group.
+
+Define
+
+$$
+\begin{aligned}
+\mathcal{D}_n & =\{\text { groups dispatched so far }\}, \\
+\mathcal{C}_n & =\{\text { groups consumed so far }\}, \\
+\mathcal{P}_n & =\mathcal{D}_n \backslash \mathcal{C}_n .
+\end{aligned}
+$$
+
+
+Here $\mathcal{P}_n$ is the set of outstanding groups.
+Since every worker generates one group at a time,
+
+$$
+\left|\mathcal{P}_n\right|=M .
+$$
+
+\subsection{Virtual iterates}
+
+The actual learner has applied only the completed groups:
+
+$$
+\theta_n=\theta_0+\eta \sum_{j \in C_n} U_j .
+$$
+
+Define a virtual learner that has already applied the generation-time estimators of all dispatched groups (also those still generating):
+
+$$
+\tilde{\theta}_n=\theta_0+\eta \sum_{j \in \mathcal{D}_n} V_j .
+$$
+The real learner cannot apply a group's estimator before its responses are available and applies the return-time, not generation-time estimator.
+
+\begin{lemma}[Analogue of Mishchenko et al.'s Lemma 1]
+    \begin{align*}
+    \tilde{\theta}_n-\theta_n & =\eta \sum_{j \in \mathcal{D}_n} V_j-\eta \sum_{j \in C_n} U_j \\
+    & =\eta \sum_{j \in \mathcal{D}_n} V_j-\eta \sum_{j \in C_n}\left(V_j+e_j\right) \\
+    & =\eta \sum_{j \in \mathcal{P}_n} V_j-\eta \sum_{j \in C_n} e_j .
+    \end{align*}
+    From our Lemma 2 and $\left|\widehat{A}_j^i\right| \leq 2 R$,
+    \begin{equation} \label{eq:gentimeestbound}
+            \left\|V_j\right\| \leq K_0, \quad K_0=2 R \sqrt{2 L \log C} .
+    \end{equation}
+
+
+    Since $\left|\mathcal{P}_n\right|=M$,
+    $
+    \left\|\sum_{j \in \mathcal{P}_n} V_j\right\| \leq M K_0 .
+    $
+    Consequently,
+
+    $$
+    \left\|\tilde{\theta}_n-\theta_n\right\| \leq \eta M K_0+\eta \sum_{j \in C_n}\left\|e_j\right\| .
+    $$
+\end{lemma}
+
+Main difference: their difference consists of outstanding gradients; our difference consists of outstanding estimators and accumulated $e_j$ errors.
+
+
+\subsection{Bounding $e_k$}
+
+
+For a fixed generated group, define
+\begin{equation*}
+F_k(\theta)
+=
+\frac{1}{TG}\sum_{i=1}^G
+\widehat\rho_k^i(\theta)
+\nabla\log\pi_\theta(Y_k^i\mid X_k)
+\widehat A_k^i,
+\end{equation*}
+where $$\rho_k^i(\theta)=\frac{\pi_\theta\left(Y_k^i \mid X_k\right)}{\pi_{\theta_{d(k)}}\left(Y_k^i \mid X_k\right)}.$$
+
+Since all ratios equal one at $\theta_{d(k)}$,
+\begin{equation*}
+F_k(\theta_{d(k)})=V_k,
+\qquad
+F_k(\theta_{r(k)})=U_k.
+\end{equation*}
+Thus
+\begin{equation*}
+e_k=F_k(\theta_{r(k)})-F_k(\theta_{d(k)}).
+\end{equation*}
+
+\begin{lemma}[Error bound] \label{lem:gmc_error}
+    $$\|e_k\| \le H_\epsilon\eta K\tau_k$$
+    where
+    $
+    H_\epsilon
+    =
+    2R(1+\epsilon)(4TL\log C+L),
+    $
+    $
+    K=2R(1+\epsilon)\sqrt{2L\log C},$ and
+    $\tau_k=r(k)-d(k).$
+\end{lemma}
+
+
+\paragraph{Assumption for the proof: finite cap switching.}
+For each group $k$, along the line segment
+\begin{equation*}
+\theta(t)=\theta_{d(k)}
++t(\theta_{r(k)}-\theta_{d(k)}),
+\qquad t\in[0,1],
+\end{equation*}
+the GMC cap switches between active and inactive only
+finitely many times.
+
+
+
+\begin{proof}
+
+\textbf{Step 1.} Write
+\begin{equation*}
+S_i(\theta):=\nabla\log\pi_\theta(Y_k^i\mid X_k),
+\qquad
+S:=T\sqrt{2L\log C}.
+\end{equation*}
+By Lemma 2 and Assumption 1 (assuming the score bound holds along the parameter segment),
+\begin{equation*}
+\|S_i(\theta)\|_2\le S,
+\qquad
+\|S_i(\theta)-S_i(\theta')\|_2
+\le TL\|\theta-\theta'\|_2.
+\end{equation*}
+Since the behavior policy is fixed,
+\begin{equation*}
+\nabla\rho_k^i(\theta)=\rho_k^i(\theta)S_i(\theta).
+\end{equation*}
+
+
+\textbf{Step 2.} We bound the derivatives of the GMC weights with respect to $\theta$, keeping the behavior policy and generated trajectories fixed.
+
+Recall
+\begin{equation*}
+\rho_k^i(\theta)
+=
+\frac{\pi_\theta(Y_k^i\mid X_k)}
+{\pi_{\theta_{d(k)}}(Y_k^i\mid X_k)},
+\qquad
+\bar\rho_k(\theta)=\frac1G\sum_{j=1}^G\rho_k^j(\theta).
+\end{equation*}
+Since the denominator is fixed,
+\begin{equation*}
+\nabla_\theta\rho_k^i(\theta)
+=\rho_k^i(\theta)S_i(\theta),
+\qquad
+\nabla_\theta\bar\rho_k(\theta)
+=\frac1G\sum_{j=1}^G\rho_k^j(\theta)S_j(\theta).
+\end{equation*}
+
+If $\bar\rho_k(\theta)<1+\epsilon$, then
+$\hat\rho_k^i=\rho_k^i$, so
+\begin{equation*}
+\nabla_\theta\hat\rho_k^i
+=\hat\rho_k^i S_i
+\quad\Rightarrow\quad
+\|\nabla_\theta\hat\rho_k^i\|_2
+\le S\hat\rho_k^i.
+\end{equation*}
+
+If $\bar\rho_k(\theta)>1+\epsilon$, then
+\begin{equation*}
+\hat\rho_k^i
+=(1+\epsilon)\frac{\rho_k^i}{\bar\rho_k}.
+\end{equation*}
+Applying the quotient rule,
+\begin{align*}
+\nabla_\theta\hat\rho_k^i
+&=(1+\epsilon)
+\left(
+\frac{\nabla_\theta\rho_k^i}{\bar\rho_k}
+-\frac{\rho_k^i\nabla_\theta\bar\rho_k}
+{\bar\rho_k^2}
+\right)\\
+&=\hat\rho_k^i
+\left(
+S_i-
+\frac{\sum_{j=1}^G\rho_k^j S_j}
+{\sum_{j=1}^G\rho_k^j}
+\right).
+\end{align*}
+
+The second term is a weighted average of trajectory scores, whose norm is at most $S$. Hence
+\begin{equation*}
+\|\nabla_\theta\hat\rho_k^i\|_2
+\le \hat\rho_k^i(\|S_i\|_2+S)
+\le 2S\hat\rho_k^i.
+\end{equation*}
+
+Combining both cases, away from cap-switching points,
+\begin{equation}
+\|\nabla_\theta\hat\rho_k^i(\theta)\|_2
+\le 2S\hat\rho_k^i(\theta).
+\label{eq:weight_derivative_bound}
+\end{equation}
+
+\textbf{Step 3.} By the product rule, using
+$|\widehat A_k^i|\le 2R$, the score bounds and
+\eqref{eq:weight_derivative_bound}, wherever the derivative exists,
+\begin{align*}
+\|DF_k(\theta)\|_{\mathrm{op}}
+&\le
+\frac{2R}{TG}\sum_{i=1}^G
+\left(
+\|\nabla\hat\rho_k^i\|_2\|S_i\|_2
++\hat\rho_k^i TL
+\right)\\
+&\le
+\frac{2R}{TG}\sum_{i=1}^G
+\hat\rho_k^i(2S^2+TL)\\
+&\le
+\frac{2R(1+\epsilon)}{T}(2S^2+TL)\\
+&=
+2R(1+\epsilon)(4TL\log C+L)
+=:H_\epsilon,
+\end{align*}
+where the third inequality uses
+$\frac1G\sum_i\hat\rho_k^i\le 1+\epsilon$.
+
+By the finite cap-switching assumption, the segment between
+$\theta_{d(k)}$ and $\theta_{r(k)}$ can be partitioned into
+finitely many intervals on which the cap has a fixed regime.
+Integrating the derivative bound on these intervals and using
+continuity at the switching points gives
+\begin{equation*}
+\|F_k(\theta_{r(k)})-F_k(\theta_{d(k)})\|_2
+\le H_\epsilon
+\|\theta_{r(k)}-\theta_{d(k)}\|_2.
+\end{equation*}
+Hence
+\begin{equation*}
+\|e_k\|_2
+\le H_\epsilon
+\|\theta_{r(k)}-\theta_{d(k)}\|_2.
+\end{equation*}
+
+\textbf{Step 4.} Finally, using the learner update
+$\theta_{n+1}=\theta_n+\eta g_n$,
+\begin{equation*}
+\theta_{r(k)}-\theta_{d(k)}
+=
+\eta\sum_{n=d(k)}^{r(k)-1}g_n.
+\end{equation*}
+
+(Note: $g_n=U_{k(n)}$ where $k(n)$ is group consumed at iteration $n$. Equivalently $g_{r(k)}=U_k$ .)
+By adapted Proposition 1,
+\begin{equation*}
+\|g_n\|_2\le K,
+\qquad
+K=2R(1+\epsilon)\sqrt{2L\log C}.
+\end{equation*}
+
+Then
+\begin{equation}
+\|\theta_{r(k)}-\theta_{d(k)}\|_2
+\le  \eta K(r(k)-d(k)).
+\label{eq:parameter_drift}
+\end{equation}
+
+Therefore,
+\begin{align*}
+\|e_k\|_2
+&\le H_\epsilon
+\|\theta_{r(k)}-\theta_{d(k)}\|_2\\
+&\le H_\epsilon\eta K(r(k)-d(k)).
+\end{align*}
+Writing $\tau_k=r(k)-d(k)$, we obtain
+\begin{equation*}
+\|e_k\|_2\le H_\epsilon\eta K\tau_k.
+\end{equation*}
+\end{proof}
+
+
+\subsection{Bounding sum of delays}
+
+Recall: $d(k)$ and $r(k)$ are the dispatch and consumption iterations of group $k$, and
+$$
+\tau_k=r(k)-d(k) .
+$$
+Then
+$$
+\mathcal{C}_N=\{k: r(k)<N\}
+$$
+denotes the groups consumed during the first $N$ learner iterations.
+
+\begin{lemma}[Cumulative delay bound] \label{lem:cumulative_delay}
+    Suppose at most $M$ groups can be outstanding at any time. Then
+    $$
+\sum_{k \in C_N} \tau_k \leq M N .
+$$
+\end{lemma} 
+
+\begin{proof}
+For $k\in\mathcal C_N$,
+\[
+\tau_k
+=\sum_{n=0}^{N-1}
+\mathbf 1_{\{d(k)\le n<r(k)\}}.
+\]
+Hence
+\begin{align*}
+\sum_{k\in\mathcal C_N}\tau_k
+&=\sum_{n=0}^{N-1}
+\sum_{k\in\mathcal C_N}
+\mathbf 1_{\{d(k)\le n<r(k)\}}\\
+&\le\sum_{n=0}^{N-1}M
+=MN,
+\end{align*}
+since at most $M$ groups can be outstanding
+at any iteration.
+\end{proof}
+
+\begin{corollary}
+Using the previous bound
+$\|e_k\|_2\le H_\epsilon\eta K\tau_k$,
+\begin{align*}
+\frac1N\sum_{k\in\mathcal C_N}\|e_k\|_2
+&\le\frac{H_\epsilon\eta K}{N}
+\sum_{k\in\mathcal C_N}\tau_k\\
+&\le H_\epsilon\eta KM.
+\end{align*}
+\end{corollary}
+
+\subsection{Convergence analysis}
+
+\paragraph{Step 1: applying the smoothness of $J$.}
+
+By $L_J$-smoothness of $J$,
+\begin{align*}
+J(\theta_{n+1})
+&\ge J(\theta_n)
++\langle\nabla J(\theta_n),
+\theta_{n+1}-\theta_n\rangle
+-\frac{L_J}{2}\|\theta_{n+1}-\theta_n\|_2^2\\
+&=J(\theta_n)
++\eta\langle\nabla J(\theta_n),g_n\rangle
+-\frac{L_J\eta^2}{2}\|g_n\|_2^2\\
+&\ge J(\theta_n)
++\eta\langle\nabla J(\theta_n),g_n\rangle
+-\frac{L_J\eta^2K^2}{2}.
+\end{align*}
+
+Summing over $n=0,\ldots,N-1$, and recalling that
+$g_{r(k)}=U_k$, gives
+\begin{equation}
+J(\theta_N)-J(\theta_0)
+\ge
+\eta\sum_{k\in\mathcal C_N}
+\langle\nabla J(\theta_{r(k)}),U_k\rangle
+-\frac{L_J\eta^2NK^2}{2}.
+\label{eq:async_descent}
+\end{equation}
+
+\paragraph{Step 2: decomposing the inner product.}
+
+Recall that $U_k=V_k+e_k$. Adding and subtracting
+$\nabla J(\theta_{d(k)})$, we obtain
+\begin{align*}
+\left\langle\nabla J\left(\theta_{r(k)}\right), U_k\right\rangle & \\
+= & \underbrace{\left\langle\nabla J\left(\theta_{d(k)}\right), V_k\right\rangle}_{\text {dispatch-time term }} \\
+& +\underbrace{\left\langle\nabla J\left(\theta_{r(k)}\right)-\nabla J\left(\theta_{d(k)}\right), V_k\right\rangle}_{\text {staleness error }} \\
+& +\underbrace{\left\langle\nabla J\left(\theta_{r(k)}\right), e_k\right\rangle}_{\text {GMCerror }} .
+\end{align*}
+
+
+
+\paragraph{Step 3: bounding the staleness and GMC errors.}
+
+First, recall that $\|V_k\|_2\le K_0$, as shown
+in the virtual-iterate lemma, where
+\[
+K_0=2R\sqrt{2L\log C}.
+\]
+
+By Cauchy--Schwarz, $L_J$-smoothness of $J$
+(Lemma 4 in our previous analysis), and
+\eqref{eq:parameter_drift},
+\begin{align*}
+&|\langle
+\nabla J(\theta_{r(k)})-\nabla J(\theta_{d(k)}),
+V_k\rangle|\\
+&\le
+\|\nabla J(\theta_{r(k)})
+-\nabla J(\theta_{d(k)})\|_2\|V_k\|_2\\
+&\le L_JK_0
+\|\theta_{r(k)}-\theta_{d(k)}\|_2\\
+&\le L_J\eta KK_0\tau_k.
+\end{align*}
+
+
+Summing the staleness error over $k\in\mathcal C_N$
+and applying Lemma~\ref{lem:cumulative_delay},
+\begin{align*}
+&\left|
+\sum_{k\in\mathcal C_N}
+\langle
+\nabla J(\theta_{r(k)})-\nabla J(\theta_{d(k)}),
+V_k\rangle
+\right|\\
+&\le L_J\eta KK_0
+\sum_{k\in\mathcal C_N}\tau_k\\
+&\le L_J\eta KK_0MN.
+\end{align*}
+
+
+Next, by Lemma 2 (the trajectory score bound)
+and the bounded reward assumption,
+\[
+\|\nabla J(\theta)\|_2
+\le RT\sqrt{2L\log C}
+=:H_J.
+\]
+
+Using Cauchy--Schwarz and the corollary to
+Lemma~\ref{lem:cumulative_delay},
+\begin{align*}
+&\left|
+\sum_{k\in\mathcal C_N}
+\langle\nabla J(\theta_{r(k)}),e_k\rangle
+\right|\\
+&\le
+\sum_{k\in\mathcal C_N}
+\|\nabla J(\theta_{r(k)})\|_2\|e_k\|_2\\
+&\le H_J\sum_{k\in\mathcal C_N}\|e_k\|_2\\
+&\le H_JH_\epsilon\eta KMN.
+\end{align*}
+
+
+
+Summing the decomposition from Step 2 over
+$k\in\mathcal C_N$, and using the two bounds above
+together with Lemma~\ref{lem:cumulative_delay},
+we obtain
+\begin{align}
+&\sum_{k\in\mathcal C_N}
+\langle\nabla J(\theta_{r(k)}),U_k\rangle
+\nonumber\\
+&\ge
+\sum_{k\in\mathcal C_N}
+\langle\nabla J(\theta_{d(k)}),V_k\rangle
+\nonumber\\
+&\quad-\eta KMN(L_JK_0+H_JH_\epsilon).
+\label{eq:async_error_bound}
+\end{align}
+
+
+
+
+\paragraph{Step 4. Relating consumed and dispatched groups.}
+
+Since every dispatched group is either consumed or
+still outstanding,
+\[
+\mathcal D_N=\mathcal C_N\sqcup\mathcal P_N.
+\]
+Hence
+\begin{align*}
+&\sum_{k\in\mathcal C_N}
+\langle\nabla J(\theta_{d(k)}),V_k\rangle\\
+&=
+\sum_{k\in\mathcal D_N}
+\langle\nabla J(\theta_{d(k)}),V_k\rangle\\
+&\quad-
+\sum_{k\in\mathcal P_N}
+\langle\nabla J(\theta_{d(k)}),V_k\rangle.
+\end{align*}
+
+Recall that $\|V_k\|_2\le K_0$ from \eqref{eq:gentimeestbound} and
+$\|\nabla J(\theta)\|_2\le H_J$ from Step 3.
+Since $|\mathcal P_N|=M$, Cauchy--Schwarz gives
+\begin{align*}
+&\left|
+\sum_{k\in\mathcal P_N}
+\langle\nabla J(\theta_{d(k)}),V_k\rangle
+\right|\\
+&\le
+\sum_{k\in\mathcal P_N}
+\|\nabla J(\theta_{d(k)})\|_2\|V_k\|_2\\
+&\le MH_JK_0.
+\end{align*}
+
+Therefore,
+\begin{align*}
+&\sum_{k\in\mathcal C_N}
+\langle\nabla J(\theta_{d(k)}),V_k\rangle\\
+&\ge
+\sum_{k\in\mathcal D_N}
+\langle\nabla J(\theta_{d(k)}),V_k\rangle
+-MH_JK_0.
+\end{align*}
+
+We now take expectations. Recall the dispatch-time
+unbiasedness property,
+\[
+\mathbb E[V_k\mid\mathcal G_k]
+=\frac1T\nabla J(\theta_{d(k)}).
+\]
+Since $\theta_{d(k)}$ is measurable with respect
+to $\mathcal G_k$, the tower property gives
+\begin{align*}
+&\mathbb E[
+\langle\nabla J(\theta_{d(k)}),V_k\rangle]\\
+&=
+\mathbb E\left[
+\left\langle
+\nabla J(\theta_{d(k)}),
+\mathbb E[V_k\mid\mathcal G_k]
+\right\rangle
+\right]\\
+&=\frac1T
+\mathbb E\|\nabla J(\theta_{d(k)})\|_2^2.
+\end{align*}
+
+There are $M$ initial groups dispatched at $\theta_0$,
+and one new group dispatched at 
+$\theta_1,\ldots,\theta_N$ each. Thus,
+\begin{align*}
+&\mathbb E\left[
+\sum_{k\in\mathcal D_N}
+\langle\nabla J(\theta_{d(k)}),V_k\rangle
+\right]\\
+&=
+\frac MT\mathbb E\|\nabla J(\theta_0)\|_2^2
++\frac1T\sum_{n=1}^N
+\mathbb E\|\nabla J(\theta_n)\|_2^2.
+\end{align*}
+
+Combining the previous inequalities, we obtain
+\begin{align}
+&\mathbb E\left[
+\sum_{k\in\mathcal C_N}
+\langle\nabla J(\theta_{d(k)}),V_k\rangle
+\right]\nonumber\\
+&\ge
+\frac MT\mathbb E\|\nabla J(\theta_0)\|_2^2
++\frac1T\sum_{n=1}^N
+\mathbb E\|\nabla J(\theta_n)\|_2^2
+-MH_JK_0.
+\label{eq:dispatch_bound}
+\end{align}
+
+
+
+\paragraph{Step 5. Convergence rate.}
+
+Combining \eqref{eq:async_descent} and
+\eqref{eq:async_error_bound}, and taking expectations,
+we obtain
+\begin{align*}
+&\mathbb E[J(\theta_N)]-J(\theta_0)\\
+&\ge
+\eta\mathbb E\left[
+\sum_{k\in\mathcal C_N}
+\langle\nabla J(\theta_{d(k)}),V_k\rangle
+\right]\\
+&\quad-\eta^2 KMN(L_JK_0+H_JH_\epsilon)
+-\frac{L_J\eta^2NK^2}{2}.
+\end{align*}
+
+Now applying \eqref{eq:dispatch_bound},
+\begin{align*}
+&\mathbb E[J(\theta_N)]-J(\theta_0)\\
+&\ge
+\frac{\eta M}{T}\mathbb E\|\nabla J(\theta_0)\|_2^2\\
+&\quad+
+\frac{\eta}{T}\sum_{n=1}^N
+\mathbb E\|\nabla J(\theta_n)\|_2^2\\
+&\quad-\eta MH_JK_0\\
+&\quad-\eta^2 KMN(L_JK_0+H_JH_\epsilon)
+-\frac{L_J\eta^2NK^2}{2}.
+\end{align*}
+
+Since $J(\theta_N)\le J^\star$, rearranging and
+dropping the nonnegative initial-gradient term gives
+\begin{align*}
+&\frac{\eta}{T}\sum_{n=1}^N
+\mathbb E\|\nabla J(\theta_n)\|_2^2\\
+&\le J^\star-J(\theta_0)
++\eta MH_JK_0\\
+&\quad+\eta^2 KMN(L_JK_0+H_JH_\epsilon)
++\frac{L_J\eta^2NK^2}{2}.
+\end{align*}
+
+Dividing by $\eta N/T$, we obtain
+\begin{align}
+&\frac1N\sum_{n=1}^N
+\mathbb E\|\nabla J(\theta_n)\|_2^2
+\nonumber\\
+&\le
+\frac{T(J^\star-J(\theta_0))}{\eta N}
++\frac{TMH_JK_0}{N}
+\nonumber\\
+&\quad+
+T\eta KM(L_JK_0+H_JH_\epsilon)
++\frac{TL_J\eta K^2}{2}.
+\label{eq:async_convergence_rate}
+\end{align}
+
+Taking $\eta=N^{-1/2}$, for fixed $M$,
+\[
+\frac1N\sum_{n=1}^N
+\mathbb E\|\nabla J(\theta_n)\|_2^2
+=O(N^{-1/2}).
+\]
+
+
